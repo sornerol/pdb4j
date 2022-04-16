@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
 
 public class PdbReader {
@@ -67,7 +68,7 @@ public class PdbReader {
         return ByteBuffer.wrap(Arrays.copyOfRange(fileData,offset,offset + 4)).getInt();
     }
 
-    private Date dateFromPdbTime(Integer pdbTime) {
-        return new Date();
+    private Calendar dateFromPdbTime(Integer pdbTime) {
+        return new Calendar.Builder().build();
     }
 }
