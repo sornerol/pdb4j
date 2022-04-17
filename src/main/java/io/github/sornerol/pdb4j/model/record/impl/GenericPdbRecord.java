@@ -30,4 +30,9 @@ public class GenericPdbRecord extends AbstractPdbRecord {
 
     public GenericPdbRecord() {
     }
+
+    @Override
+    public byte[] toBytes() {
+        return data;
+    }
 }

@@ -33,4 +33,10 @@ public interface PdbRecord {
      * @return the category value (the lowest four bits in the record's attribute byte)
      */
     int getCategoryValue();
+
+    /**
+     * Export the record as a byte array for writing to a PDB file
+     * @return the record's raw byte array
+     */
+    byte[] toBytes();
 }

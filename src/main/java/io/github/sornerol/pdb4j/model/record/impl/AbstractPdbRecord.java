@@ -46,6 +46,7 @@ public abstract class AbstractPdbRecord implements PdbRecord {
         return (attributes & DELETE_ATTRIBUTE) != 0;
     }
 
+    @Override
     public int getCategoryValue() {
         return attributes & CATEGORY_MASK;
     }
