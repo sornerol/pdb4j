@@ -17,14 +17,26 @@ import java.util.*;
 
 import static io.github.sornerol.pdb4j.util.PdbDatabaseConstants.*;
 
+/**
+ * Reads a PDB database from either a file or byte array into a {@link PdbDatabase}.
+ * @param <T> Class to use for storing database records.
+ */
 @Slf4j
 public class PdbReader<T extends AbstractPdbRecord> {
 
     private final byte[] fileData;
 
+    /**
+     * The {@link RecordReader} to use to interpret data from individual records in the PDB database.
+     */
     @Setter
     private RecordReader<T> recordReader;
 
+    /**
+     * Create a new PdbReader to read in the provided file.
+     * @param file
+     * @throws IOException if the file doesn't exist or there is a problem reading the file
+     */
     public PdbReader(File file) throws IOException {
         try (FileInputStream inputStream = new FileInputStream(file)) {
             fileData = new byte[(int) file.length()];
@@ -35,11 +47,21 @@ public class PdbReader<T extends AbstractPdbRecord> {
         }
     }
 
+    /**
+     * Create a new PdbReader to read from the provided byte array
+     * @param fileData A PDB database as a byte array.
+     */
     public PdbReader(byte[] fileData) {
         this.fileData = fileData;
     }
 
-    public PdbDatabase<T> read() throws UnsupportedEncodingException {
+    /**
+     * Reads the PDB file data into a {@link PdbDatabase} object.
+     * @return the imported {@link PdbDatabase}.
+     * @throws UnsupportedEncodingException
+     * @throws PdbReaderException if a {@link RecordReader} hasn't been supplied.
+     */
+    public PdbDatabase<T> read() throws UnsupportedEncodingException, PdbReaderException {
         if (recordReader == null) {
             throw new PdbReaderException("No RecordReader supplied.");
         }

@@ -14,6 +14,9 @@ public abstract class AbstractPdbRecord implements PdbRecord {
     public static final int DELETE_ATTRIBUTE = 0x80;
     public static final int CATEGORY_MASK = 0x0F;
 
+    /**
+     * The record's attributes.
+     */
     private byte attributes;
 
     public AbstractPdbRecord(byte attributes) {
