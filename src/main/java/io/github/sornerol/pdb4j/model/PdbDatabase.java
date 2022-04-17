@@ -1,6 +1,6 @@
 package io.github.sornerol.pdb4j.model;
 
-import io.github.sornerol.pdb4j.model.record.AbstractPdbRecord;
+import io.github.sornerol.pdb4j.model.record.impl.AbstractPdbRecord;
 import lombok.Data;
 
 import java.util.Calendar;
