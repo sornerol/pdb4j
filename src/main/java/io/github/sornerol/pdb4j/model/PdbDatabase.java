@@ -1,13 +1,14 @@
 package io.github.sornerol.pdb4j.model;
 
-import io.github.sornerol.pdb4j.model.record.impl.AbstractPdbRecord;
+import io.github.sornerol.pdb4j.model.record.PdbRecord;
+
 import lombok.Data;
 
 import java.util.Calendar;
 import java.util.List;
 
 @Data
-public class PdbDatabase<T extends AbstractPdbRecord> {
+public class PdbDatabase<T extends PdbRecord> {
     private String name;
     private short fileAttributes;
     private short version;

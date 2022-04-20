@@ -2,7 +2,7 @@ package io.github.sornerol.pdb4j.reader;
 
 import io.github.sornerol.pdb4j.exception.PdbReaderException;
 import io.github.sornerol.pdb4j.model.PdbDatabase;
-import io.github.sornerol.pdb4j.model.record.impl.AbstractPdbRecord;
+import io.github.sornerol.pdb4j.model.record.PdbRecord;
 import io.github.sornerol.pdb4j.reader.record.RecordReader;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ import static io.github.sornerol.pdb4j.util.PdbDatabaseConstants.*;
  * @param <T> Class to use for storing database records.
  */
 @Slf4j
-public class PdbReader<T extends AbstractPdbRecord> {
+public class PdbReader<T extends PdbRecord> {
 
     private final byte[] fileData;
 
