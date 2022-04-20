@@ -2,8 +2,13 @@ package io.github.sornerol.pdb4j.reader;
 
 import io.github.sornerol.pdb4j.exception.PdbReaderException;
 import io.github.sornerol.pdb4j.model.PdbDatabase;
+import io.github.sornerol.pdb4j.model.appinfo.AppInfo;
 import io.github.sornerol.pdb4j.model.record.PdbRecord;
+import io.github.sornerol.pdb4j.model.sortinfo.SortInfo;
+import io.github.sornerol.pdb4j.reader.appinfo.AppInfoReader;
 import io.github.sornerol.pdb4j.reader.record.RecordReader;
+import io.github.sornerol.pdb4j.reader.sortinfo.SortInfoReader;
+import lombok.Builder;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,10 +24,11 @@ import static io.github.sornerol.pdb4j.util.PdbDatabaseConstants.*;
 
 /**
  * Reads a PDB database from either a file or byte array into a {@link PdbDatabase}.
+ *
  * @param <T> Class to use for storing database records.
  */
 @Slf4j
-public class PdbReader<T extends PdbRecord> {
+public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInfo> {
 
     private final byte[] fileData;
 
@@ -33,7 +39,20 @@ public class PdbReader<T extends PdbRecord> {
     private RecordReader<T> recordReader;
 
     /**
+     * The {@link AppInfoReader} to use to interpret the file's app info area (if the file contains one).
+     */
+    @Setter
+    private AppInfoReader<R> appInfoReader;
+
+    /**
+     * The {@link SortInfoReader} to use to interpret the file's sort info area (if the file contains one).
+     */
+    @Setter
+    private SortInfoReader<S> sortInfoReader;
+
+    /**
      * Create a new PdbReader to read in the provided file.
+     *
      * @param file
      * @throws IOException if the file doesn't exist or there is a problem reading the file
      */
@@ -49,6 +68,7 @@ public class PdbReader<T extends PdbRecord> {
 
     /**
      * Create a new PdbReader to read from the provided byte array
+     *
      * @param fileData A PDB database as a byte array.
      */
     public PdbReader(byte[] fileData) {
@@ -57,16 +77,13 @@ public class PdbReader<T extends PdbRecord> {
 
     /**
      * Reads the PDB file data into a {@link PdbDatabase} object.
+     *
      * @return the imported {@link PdbDatabase}.
      * @throws UnsupportedEncodingException
-     * @throws PdbReaderException if a {@link RecordReader} hasn't been supplied.
+     * @throws PdbReaderException           if a {@link RecordReader} hasn't been supplied.
      */
-    public PdbDatabase<T> read() throws UnsupportedEncodingException, PdbReaderException {
-        if (recordReader == null) {
-            throw new PdbReaderException("No RecordReader supplied.");
-        }
-
-        PdbDatabase<T> database = new PdbDatabase<T>();
+    public PdbDatabase<T, R, S> read() throws UnsupportedEncodingException, PdbReaderException {
+        PdbDatabase<T, R, S> database = new PdbDatabase<T, R, S>();
         database.setName(getNullTerminatedString(Arrays.copyOfRange(fileData, NAME_OFFSET, NAME_LENGTH_BYTES)));
         database.setFileAttributes(getShort(fileData, FILE_ATTRIBUTES_OFFSET));
         database.setVersion(getShort(fileData, VERSION_OFFSET));
@@ -82,6 +99,8 @@ public class PdbReader<T extends PdbRecord> {
         database.setNextRecordList(getInt(fileData, NEXT_RECORD_LIST_OFFSET));
         database.setNumberOfRecords(getShort(fileData, NUMBER_OF_RECORDS_OFFSET));
         Queue<RecordHeader> recordHeaders = readRecordHeaders(database.getNumberOfRecords());
+        database.setAppInfo(readAppInfoArea());
+        database.setSortInfo(readSortInfoArea());
         database.setRecords(readRecords(recordHeaders));
         return database;
     }
@@ -145,13 +164,21 @@ public class PdbReader<T extends PdbRecord> {
             RecordHeader currentRecord = recordHeaders.poll();
             RecordHeader nextRecord = recordHeaders.peek();
             int nextOffset = nextRecord != null ? nextRecord.offset : fileData.length;
-            log.debug("Reading record at offset " +
-                    currentRecord.offset +
-                    " (size: " + (nextOffset - currentRecord.offset) + ").");
+            log.debug("Reading record at offset " + currentRecord.offset + " (size: " + (nextOffset - currentRecord.offset) + ").");
             byte[] recordData = Arrays.copyOfRange(fileData, currentRecord.offset, nextOffset);
-            records.add((T) recordReader.read(currentRecord.attributes, recordData));
+            records.add(recordReader.read(currentRecord.attributes, recordData));
         }
         return records;
+    }
+
+    private R readAppInfoArea() {
+
+        return null;
+    }
+
+    private S readSortInfoArea() {
+
+        return null;
     }
 
     private static class RecordHeader {
