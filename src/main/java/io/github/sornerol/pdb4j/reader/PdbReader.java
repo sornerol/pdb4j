@@ -8,6 +8,7 @@ import io.github.sornerol.pdb4j.model.sortinfo.SortInfo;
 import io.github.sornerol.pdb4j.reader.appinfo.AppInfoReader;
 import io.github.sornerol.pdb4j.reader.record.RecordReader;
 import io.github.sornerol.pdb4j.reader.sortinfo.SortInfoReader;
+import io.github.sornerol.pdb4j.util.PalmStringUtil;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -113,25 +114,28 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         database.setModificationNumber(getInt(fileData, MODIFICATION_NUMBER_OFFSET));
         database.setAppInfoOffset(getInt(fileData, APP_INFO_OFFSET));
         database.setSortInfoOffset(getInt(fileData, SORT_INFO_OFFSET));
-        database.setDatabaseType(new String(fileData, DATABASE_TYPE_OFFSET, 4, CHARSET));
-        database.setCreatorId(new String(fileData, CREATOR_ID_OFFSET, 4, CHARSET));
+        database.setDatabaseType(getString(fileData, DATABASE_TYPE_OFFSET, 4));
+        database.setCreatorId(getString(fileData, CREATOR_ID_OFFSET, 4));
         database.setUniqueIdSeed(getInt(fileData, UNIQUE_ID_SEED_OFFSET));
         database.setNextRecordList(getInt(fileData, NEXT_RECORD_LIST_OFFSET));
         database.setNumberOfRecords(getShort(fileData, NUMBER_OF_RECORDS_OFFSET));
     }
 
     private String getNullTerminatedString(byte[] array) throws UnsupportedEncodingException {
-        int position = 0;
-        while (position < array.length) {
-            if (array[position] == 0) {
+        int length = 0;
+        while (length < array.length) {
+            if (array[length] == 0) {
                 break;
             }
-            position++;
+            length++;
         }
-        log.debug("File name length is " + position + " byte(s).");
-        return new String(array, 0, position, CHARSET);
+        log.debug("File name length is " + length + " byte(s).");
+        return getString(array, 0, length);
     }
 
+    private String getString(byte[] array, int offset, int length) throws UnsupportedEncodingException {
+        return PalmStringUtil.palmToUnicode(new String(array, offset, length, CHARSET));
+    }
 
     private short getShort(byte[] array, int offset) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(Arrays.copyOfRange(array, offset, offset + 2));
