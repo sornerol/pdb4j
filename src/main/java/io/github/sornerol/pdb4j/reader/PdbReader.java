@@ -8,7 +8,6 @@ import io.github.sornerol.pdb4j.model.sortinfo.SortInfo;
 import io.github.sornerol.pdb4j.reader.appinfo.AppInfoReader;
 import io.github.sornerol.pdb4j.reader.record.RecordReader;
 import io.github.sornerol.pdb4j.reader.sortinfo.SortInfoReader;
-import lombok.Builder;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,11 +78,32 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
      * Reads the PDB file data into a {@link PdbDatabase} object.
      *
      * @return the imported {@link PdbDatabase}.
-     * @throws UnsupportedEncodingException
-     * @throws PdbReaderException           if a {@link RecordReader} hasn't been supplied.
+     * @throws PdbReaderException if a {@link RecordReader} hasn't been supplied.
      */
-    public PdbDatabase<T, R, S> read() throws UnsupportedEncodingException, PdbReaderException {
+    public PdbDatabase<T, R, S> read() throws PdbReaderException {
         PdbDatabase<T, R, S> database = new PdbDatabase<T, R, S>();
+        try {
+            readHeader(database);
+        } catch (UnsupportedEncodingException e) {
+            throw new PdbReaderException("Caught UnsupportedEncodingException. This should never happen. Please consider" + "reporting this exception to Pdb4j's maintainers:\n" + e.getMessage());
+        }
+        Queue<RecordHeader> recordHeaders = readRecordHeaders(database.getNumberOfRecords());
+        int firstRecordOffset = 0;
+        if (recordHeaders.size() > 0) {
+            firstRecordOffset = recordHeaders.peek().offset;
+        }
+        if (database.getAppInfoOffset() > 0) {
+            readAppInfoArea(database, firstRecordOffset);
+        }
+        if (database.getSortInfoOffset() > 0) {
+            readSortInfoArea(database, firstRecordOffset);
+        }
+
+        database.setRecords(readRecords(recordHeaders));
+        return database;
+    }
+
+    private void readHeader(PdbDatabase<T, R, S> database) throws UnsupportedEncodingException {
         database.setName(getNullTerminatedString(Arrays.copyOfRange(fileData, NAME_OFFSET, NAME_LENGTH_BYTES)));
         database.setFileAttributes(getShort(fileData, FILE_ATTRIBUTES_OFFSET));
         database.setVersion(getShort(fileData, VERSION_OFFSET));
@@ -98,11 +118,6 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         database.setUniqueIdSeed(getInt(fileData, UNIQUE_ID_SEED_OFFSET));
         database.setNextRecordList(getInt(fileData, NEXT_RECORD_LIST_OFFSET));
         database.setNumberOfRecords(getShort(fileData, NUMBER_OF_RECORDS_OFFSET));
-        Queue<RecordHeader> recordHeaders = readRecordHeaders(database.getNumberOfRecords());
-        database.setAppInfo(readAppInfoArea());
-        database.setSortInfo(readSortInfoArea());
-        database.setRecords(readRecords(recordHeaders));
-        return database;
     }
 
     private String getNullTerminatedString(byte[] array) throws UnsupportedEncodingException {
@@ -116,6 +131,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         log.debug("File name length is " + position + " byte(s).");
         return new String(array, 0, position, CHARSET);
     }
+
 
     private short getShort(byte[] array, int offset) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(Arrays.copyOfRange(array, offset, offset + 2));
@@ -147,6 +163,10 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
 
     private Queue<RecordHeader> readRecordHeaders(int numberOfRecords) {
         Queue<RecordHeader> recordHeaders = new LinkedList<>();
+        if (numberOfRecords > 0 && recordReader == null) {
+            log.warn("PDB database has records, but no RecordReader provided.");
+            return recordHeaders;
+        }
         int currentOffset = RECORD_HEADERS_OFFSET;
         for (int i = 0; i < numberOfRecords; i++) {
             byte[] recordHeader = Arrays.copyOfRange(fileData, currentOffset, currentOffset + RECORD_HEADER_SIZE_BYTES);
@@ -171,14 +191,31 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         return records;
     }
 
-    private R readAppInfoArea() {
-
-        return null;
+    private void readAppInfoArea(PdbDatabase<T, R, S> database, int firstRecordOffset) {
+        if (appInfoReader == null) {
+            log.warn("File has AppInfoOffset, but no AppInfoReader provided.");
+            return;
+        }
+        final int startOffset = database.getAppInfoOffset();
+        final int sortInfoOffset = database.getSortInfoOffset();
+        int endOffset = (sortInfoOffset > 0) ? sortInfoOffset : firstRecordOffset;
+        if (endOffset == 0) {
+            endOffset = fileData.length;
+        }
+        final byte[] appInfoData = Arrays.copyOfRange(fileData, startOffset, endOffset);
+        database.setAppInfo(appInfoReader.read(appInfoData));
     }
 
-    private S readSortInfoArea() {
+    private void readSortInfoArea(PdbDatabase<T, R, S> database, int firstRecordOffset) {
+        if (sortInfoReader == null) {
+            log.warn("File has SortInfoOffset, but no SortInfoReader provided.");
+            return;
+        }
+        final int startOffset = database.getSortInfoOffset();
+        final int endOffset = (firstRecordOffset > 0) ? firstRecordOffset : fileData.length;
 
-        return null;
+        final byte[] sortInfoData = Arrays.copyOfRange(fileData, startOffset, endOffset);
+        database.setSortInfo(sortInfoReader.read(sortInfoData));
     }
 
     private static class RecordHeader {
