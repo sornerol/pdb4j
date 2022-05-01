@@ -4,6 +4,11 @@ package io.github.sornerol.pdb4j.model.record;
  * A single record in a PDB database.
  */
 public interface PdbRecord {
+
+    void setAttributes(byte attributes);
+
+    byte getAttributes();
+
     /**
      * Is the record secret
      * @return true if the secret flag is set in the record attributes
