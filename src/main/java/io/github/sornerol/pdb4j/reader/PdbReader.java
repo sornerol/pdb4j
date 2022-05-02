@@ -1,6 +1,5 @@
 package io.github.sornerol.pdb4j.reader;
 
-import io.github.sornerol.pdb4j.exception.PdbReaderException;
 import io.github.sornerol.pdb4j.model.PdbDatabase;
 import io.github.sornerol.pdb4j.model.appinfo.AppInfo;
 import io.github.sornerol.pdb4j.model.record.PdbRecord;
@@ -8,6 +7,7 @@ import io.github.sornerol.pdb4j.model.sortinfo.SortInfo;
 import io.github.sornerol.pdb4j.reader.appinfo.AppInfoReader;
 import io.github.sornerol.pdb4j.reader.record.RecordReader;
 import io.github.sornerol.pdb4j.reader.sortinfo.SortInfoReader;
+import io.github.sornerol.pdb4j.util.PalmDateUtil;
 import io.github.sornerol.pdb4j.util.PalmStringUtil;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -15,9 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static io.github.sornerol.pdb4j.util.PdbDatabaseConstants.*;
@@ -32,6 +32,9 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
 
     private final byte[] fileData;
 
+    private int appInfoOffset;
+    private int sortInfoOffset;
+    private int numberOfRecords;
     /**
      * The {@link RecordReader} to use to interpret data from individual records in the PDB database.
      */
@@ -53,7 +56,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
     /**
      * Create a new PdbReader to read in the provided file.
      *
-     * @param file
+     * @param file PDB file to read
      * @throws IOException if the file doesn't exist or there is a problem reading the file
      */
     public PdbReader(File file) throws IOException {
@@ -79,24 +82,20 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
      * Reads the PDB file data into a {@link PdbDatabase} object.
      *
      * @return the imported {@link PdbDatabase}.
-     * @throws PdbReaderException if a {@link RecordReader} hasn't been supplied.
      */
-    public PdbDatabase<T, R, S> read() throws PdbReaderException {
-        PdbDatabase<T, R, S> database = new PdbDatabase<T, R, S>();
-        try {
-            readHeader(database);
-        } catch (UnsupportedEncodingException e) {
-            throw new PdbReaderException("Caught UnsupportedEncodingException. This should never happen. Please consider" + "reporting this exception to Pdb4j's maintainers:\n" + e.getMessage());
-        }
-        Queue<RecordHeader> recordHeaders = readRecordHeaders(database.getNumberOfRecords());
+    public PdbDatabase<T, R, S> read() {
+        PdbDatabase<T, R, S> database = new PdbDatabase<>();
+        readHeader(database);
+
+        Queue<RecordHeader> recordHeaders = readRecordHeaders();
         int firstRecordOffset = 0;
         if (recordHeaders.size() > 0) {
             firstRecordOffset = recordHeaders.peek().offset;
         }
-        if (database.getAppInfoOffset() > 0) {
+        if (appInfoOffset > 0) {
             readAppInfoArea(database, firstRecordOffset);
         }
-        if (database.getSortInfoOffset() > 0) {
+        if (sortInfoOffset > 0) {
             readSortInfoArea(database, firstRecordOffset);
         }
 
@@ -104,24 +103,24 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         return database;
     }
 
-    private void readHeader(PdbDatabase<T, R, S> database) throws UnsupportedEncodingException {
+    private void readHeader(PdbDatabase<T, R, S> database) {
         database.setName(getNullTerminatedString(Arrays.copyOfRange(fileData, NAME_OFFSET, NAME_LENGTH_BYTES)));
         database.setFileAttributes(getShort(fileData, FILE_ATTRIBUTES_OFFSET));
         database.setVersion(getShort(fileData, VERSION_OFFSET));
-        database.setCreationTime(dateFromPdbTime(getInt(fileData, CREATION_TIME_OFFSET)));
-        database.setModificationTime(dateFromPdbTime(getInt(fileData, MODIFICATION_TIME_OFFSET)));
-        database.setBackupTime(dateFromPdbTime(getInt(fileData, BACKUP_TIME_OFFSET)));
+        database.setCreationTime(PalmDateUtil.calendarFromPdbTime(getInt(fileData, CREATION_TIME_OFFSET)));
+        database.setModificationTime(PalmDateUtil.calendarFromPdbTime(getInt(fileData, MODIFICATION_TIME_OFFSET)));
+        database.setBackupTime(PalmDateUtil.calendarFromPdbTime(getInt(fileData, BACKUP_TIME_OFFSET)));
         database.setModificationNumber(getInt(fileData, MODIFICATION_NUMBER_OFFSET));
-        database.setAppInfoOffset(getInt(fileData, APP_INFO_OFFSET));
-        database.setSortInfoOffset(getInt(fileData, SORT_INFO_OFFSET));
+        appInfoOffset = getInt(fileData, APP_INFO_OFFSET);
+        sortInfoOffset = getInt(fileData, SORT_INFO_OFFSET);
         database.setDatabaseType(getString(fileData, DATABASE_TYPE_OFFSET, 4));
         database.setCreatorId(getString(fileData, CREATOR_ID_OFFSET, 4));
         database.setUniqueIdSeed(getInt(fileData, UNIQUE_ID_SEED_OFFSET));
         database.setNextRecordList(getInt(fileData, NEXT_RECORD_LIST_OFFSET));
-        database.setNumberOfRecords(getShort(fileData, NUMBER_OF_RECORDS_OFFSET));
+        numberOfRecords = getShort(fileData, NUMBER_OF_RECORDS_OFFSET);
     }
 
-    private String getNullTerminatedString(byte[] array) throws UnsupportedEncodingException {
+    private String getNullTerminatedString(byte[] array) {
         int length = 0;
         while (length < array.length) {
             if (array[length] == 0) {
@@ -133,8 +132,8 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         return getString(array, 0, length);
     }
 
-    private String getString(byte[] array, int offset, int length) throws UnsupportedEncodingException {
-        return PalmStringUtil.palmToUnicode(new String(array, offset, length, CHARSET));
+    private String getString(byte[] array, int offset, int length) {
+        return PalmStringUtil.palmToUnicode(new String(array, offset, length, StandardCharsets.ISO_8859_1));
     }
 
     private short getShort(byte[] array, int offset) {
@@ -149,23 +148,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         return byteBuffer.getInt();
     }
 
-    private Calendar dateFromPdbTime(int pdbTime) {
-
-        /*
-          Some Palm applications use the Unix epoch base instead of the Palm epoch base.
-          If the highest bit is not set in the timestamp, we can assume this is the case, since otherwise
-          the date would be a date well before the PDB format was created.
-        */
-        int epochYear = ((pdbTime & 0x80000000) == 0) ? UNIX_EPOCH_YEAR : PALM_EPOCH_YEAR;
-        log.debug("Epoch year detected as " + epochYear + ".");
-        Calendar calendar = Calendar.getInstance(TimeZone.getDefault());
-        calendar.clear();
-        calendar.set(epochYear, Calendar.JANUARY, 1, 0, 0, 0);
-        calendar.setTimeInMillis(calendar.getTimeInMillis() + (Integer.toUnsignedLong(pdbTime) * 1000));
-        return calendar;
-    }
-
-    private Queue<RecordHeader> readRecordHeaders(int numberOfRecords) {
+    private Queue<RecordHeader> readRecordHeaders() {
         Queue<RecordHeader> recordHeaders = new LinkedList<>();
         if (numberOfRecords > 0 && recordReader == null) {
             log.warn("PDB database has records, but no RecordReader provided.");
@@ -200,8 +183,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
             log.warn("File has AppInfoOffset, but no AppInfoReader provided.");
             return;
         }
-        final int startOffset = database.getAppInfoOffset();
-        final int sortInfoOffset = database.getSortInfoOffset();
+        final int startOffset = appInfoOffset;
         int endOffset = (sortInfoOffset > 0) ? sortInfoOffset : firstRecordOffset;
         if (endOffset == 0) {
             endOffset = fileData.length;
@@ -215,7 +197,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
             log.warn("File has SortInfoOffset, but no SortInfoReader provided.");
             return;
         }
-        final int startOffset = database.getSortInfoOffset();
+        final int startOffset = sortInfoOffset;
         final int endOffset = (firstRecordOffset > 0) ? firstRecordOffset : fileData.length;
 
         final byte[] sortInfoData = Arrays.copyOfRange(fileData, startOffset, endOffset);

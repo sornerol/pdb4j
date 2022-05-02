@@ -1,7 +1,7 @@
 package io.github.sornerol.pdb4j.util;
 
 public class PdbDatabaseConstants {
-    public static final String CHARSET = "iso-8859-1";
+    public static final int FILE_HEADER_LENGTH_BYTES = 78;
 
     // File offsets in bytes
     public static final int NAME_OFFSET = 0;
