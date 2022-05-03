@@ -8,16 +8,20 @@ import io.github.sornerol.pdb4j.util.PalmStringUtil;
 import io.github.sornerol.pdb4j.util.PdbDatabaseConstants;
 import lombok.Data;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 
 @Data
-public class PdbDatabase<T extends PdbRecord, R extends AppInfo, S extends SortInfo> {
+public class PdbDatabase<R extends PdbRecord, A extends AppInfo, S extends SortInfo> {
     private boolean useUnixEpochTime;
     private String name;
     private short fileAttributes;
@@ -30,9 +34,9 @@ public class PdbDatabase<T extends PdbRecord, R extends AppInfo, S extends SortI
     private String creatorId;
     private int uniqueIdSeed;  // see https://web.archive.org/web/20090315213538/http://membres.lycos.fr/microfirst/palm/pdb.html, note B
     private int nextRecordList;  // see https://web.archive.org/web/20090315213538/http://membres.lycos.fr/microfirst/palm/pdb.html
-    private R appInfo;
+    private A appInfo;
     private S sortInfo;
-    private List<T> records;
+    private List<R> records;
 
     public PdbDatabase() {
         useUnixEpochTime = false;
@@ -49,24 +53,54 @@ public class PdbDatabase<T extends PdbRecord, R extends AppInfo, S extends SortI
 
     /**
      * Write the PDB database to the filesystem
+     *
      * @param filePath Path to write the file to
      */
     public void writeToFile(String filePath) throws IOException {
         File file = new File(filePath);
-        try(FileOutputStream fileOutputStream = new FileOutputStream(file)) {
+        try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
             fileOutputStream.write(toByteArray());
         }
     }
 
     /**
      * Convert the PDB database to a raw byte array
+     *
      * @return byte array representation of the PDB database
      */
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        //TODO: Calculate appInfoOffset and sortInfoOffset
         outputStream.write(headerToByteArray());
-        return null;
+        outputStream.write(recordHeadersToByteArray());
+        if (getAppInfoOffset() > 0) {
+            outputStream.write(appInfo.toBytes());
+        }
+        if (getSortInfoOffset() > 0) {
+            outputStream.write(sortInfo.toBytes());
+        }
+        for (R record : records) {
+            outputStream.write(record.toBytes());
+        }
+        return outputStream.toByteArray();
+    }
+
+    public int getAppInfoOffset() {
+        if (appInfo == null || appInfo.toBytes().length == 0) {
+            return 0;
+        }
+        return PdbDatabaseConstants.FILE_HEADER_LENGTH_BYTES + getRecordHeadersSize();
+    }
+
+    public int getSortInfoOffset() {
+        if (sortInfo == null || sortInfo.toBytes().length == 0) {
+            return 0;
+        }
+
+        int appInfoOffset = getAppInfoOffset();
+        int appInfoSize = (appInfoOffset > 0) ? appInfo.toBytes().length : 0;
+        int lastUsedOffset = (appInfoOffset > 0) ? appInfoOffset : PdbDatabaseConstants.FILE_HEADER_LENGTH_BYTES;
+
+        return lastUsedOffset + appInfoSize;
     }
 
     private byte[] headerToByteArray() {
@@ -95,13 +129,34 @@ public class PdbDatabase<T extends PdbRecord, R extends AppInfo, S extends SortI
         return buffer.array();
     }
 
-    public int getAppInfoOffset() {
+    private byte[] recordHeadersToByteArray() {
+        int appInfoOffset = getAppInfoOffset();
+        int appInfoSize = (appInfoOffset > 0) ? appInfo.toBytes().length : 0;
 
-        return 0;
+        int sortInfoOffset = getSortInfoOffset();
+        int sortInfoSize = (sortInfoOffset > 0) ? sortInfo.toBytes().length : 0;
+
+        int nextOffset;
+        if (sortInfoOffset > 0) {
+            nextOffset = sortInfoOffset + sortInfoSize;
+        } else if (appInfoOffset > 0) {
+            nextOffset = appInfoOffset + appInfoSize;
+        } else {
+            nextOffset = PdbDatabaseConstants.FILE_HEADER_LENGTH_BYTES + getRecordHeadersSize();
+        }
+        ByteBuffer byteBuffer = ByteBuffer.allocate(getRecordHeadersSize());
+        byteBuffer.order(ByteOrder.BIG_ENDIAN);
+        for (R record : records) {
+            byteBuffer.putInt(nextOffset);
+            byteBuffer.put(record.getAttributes());
+            byte[] uniqueId = {0, 0, 0};
+            byteBuffer.put(uniqueId);
+            nextOffset += record.toBytes().length;
+        }
+        return byteBuffer.array();
     }
 
-    public int getSortInfoOffset() {
-
-        return 0;
+    private int getRecordHeadersSize() {
+        return getNumberOfRecords() * 8;
     }
 }
