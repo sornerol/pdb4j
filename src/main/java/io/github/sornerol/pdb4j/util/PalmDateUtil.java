@@ -47,7 +47,9 @@ public class PalmDateUtil {
     public static int pdbTimestampFromCalendar(Calendar calendar, boolean useUnixEpoch) {
         int epochYear = useUnixEpoch ? UNIX_EPOCH_YEAR : PALM_EPOCH_YEAR;
         Calendar offset = getBase(epochYear);
-        return (int) (calendar.getTimeInMillis() - offset.getTimeInMillis()) / 1000;
+        int calendarSeconds = Math.toIntExact(calendar.getTimeInMillis() / 1000);
+        int offsetSeconds = Math.toIntExact(offset.getTimeInMillis() / 1000);
+        return calendarSeconds - offsetSeconds;
     }
 
     private static Calendar getBase(int epochYear) {
