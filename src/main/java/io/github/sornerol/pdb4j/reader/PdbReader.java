@@ -25,10 +25,12 @@ import static io.github.sornerol.pdb4j.util.PdbDatabaseConstants.*;
 /**
  * Reads a PDB database from either a file or byte array into a {@link PdbDatabase}.
  *
- * @param <T> Class to use for storing database records.
+ * @param <R>
+ * @param <A>
+ * @param <S>
  */
 @Slf4j
-public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInfo> {
+public class PdbReader<R extends PdbRecord, A extends AppInfo, S extends SortInfo> {
 
     private final byte[] fileData;
 
@@ -39,13 +41,13 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
      * The {@link RecordReader} to use to interpret data from individual records in the PDB database.
      */
     @Setter
-    private RecordReader<T> recordReader;
+    private RecordReader<R> recordReader;
 
     /**
      * The {@link AppInfoReader} to use to interpret the file's app info area (if the file contains one).
      */
     @Setter
-    private AppInfoReader<R> appInfoReader;
+    private AppInfoReader<A> appInfoReader;
 
     /**
      * The {@link SortInfoReader} to use to interpret the file's sort info area (if the file contains one).
@@ -83,8 +85,8 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
      *
      * @return the imported {@link PdbDatabase}.
      */
-    public PdbDatabase<T, R, S> read() {
-        PdbDatabase<T, R, S> database = new PdbDatabase<>();
+    public PdbDatabase<R, A, S> read() {
+        PdbDatabase<R, A, S> database = new PdbDatabase<>();
         readHeader(database);
 
         Queue<RecordHeader> recordHeaders = readRecordHeaders();
@@ -103,7 +105,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         return database;
     }
 
-    private void readHeader(PdbDatabase<T, R, S> database) {
+    private void readHeader(PdbDatabase<R, A, S> database) {
         database.setName(getNullTerminatedString(Arrays.copyOfRange(fileData, NAME_OFFSET, NAME_LENGTH_BYTES)));
         database.setFileAttributes(getShort(fileData, FILE_ATTRIBUTES_OFFSET));
         database.setVersion(getShort(fileData, VERSION_OFFSET));
@@ -165,8 +167,8 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         return recordHeaders;
     }
 
-    private List<T> readRecords(Queue<RecordHeader> recordHeaders) {
-        List<T> records = new ArrayList<>();
+    private List<R> readRecords(Queue<RecordHeader> recordHeaders) {
+        List<R> records = new ArrayList<>();
         while (recordHeaders.peek() != null) {
             RecordHeader currentRecord = recordHeaders.poll();
             RecordHeader nextRecord = recordHeaders.peek();
@@ -178,7 +180,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         return records;
     }
 
-    private void readAppInfoArea(PdbDatabase<T, R, S> database, int firstRecordOffset) {
+    private void readAppInfoArea(PdbDatabase<R, A, S> database, int firstRecordOffset) {
         if (appInfoReader == null) {
             log.warn("File has AppInfoOffset, but no AppInfoReader provided.");
             return;
@@ -192,7 +194,7 @@ public class PdbReader<T extends PdbRecord, R extends AppInfo, S extends SortInf
         database.setAppInfo(appInfoReader.read(appInfoData));
     }
 
-    private void readSortInfoArea(PdbDatabase<T, R, S> database, int firstRecordOffset) {
+    private void readSortInfoArea(PdbDatabase<R, A, S> database, int firstRecordOffset) {
         if (sortInfoReader == null) {
             log.warn("File has SortInfoOffset, but no SortInfoReader provided.");
             return;
