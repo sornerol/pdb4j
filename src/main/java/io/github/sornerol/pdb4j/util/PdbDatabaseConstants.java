@@ -1,5 +1,8 @@
 package io.github.sornerol.pdb4j.util;
 
+/**
+ * Helper class that contains constants used internally by pdb4j in reading and writing Palm PDB files
+ */
 public class PdbDatabaseConstants {
     public static final int FILE_HEADER_LENGTH_BYTES = 78;
 
